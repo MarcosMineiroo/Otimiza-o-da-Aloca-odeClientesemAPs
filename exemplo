@@ -1,0 +1,89 @@
+import numpy as np
+import random
+
+# Definição dos Access Points (APs)
+APs = {
+    "A": {"loc": [0, 0], "cap": 64},
+    "B": {"loc": [80, 0], "cap": 64},
+    "C": {"loc": [0, 80], "cap": 128},
+    "D": {"loc": [80, 80], "cap": 128},
+}
+
+# Função para calcular a distância euclidiana
+def calcular_distancia(cliente, ap):
+    return np.sqrt((cliente[0] - ap[0])**2 + (cliente[1] - ap[1])**2)
+
+# Função para avaliar a aptidão de uma solução
+def avaliar_solucao(solucao, clientes):
+    total_distancia = 0
+    capacidade_usada = {ap: 0 for ap in APs.keys()}
+
+    for cliente, ap in zip(clientes, solucao):
+        capacidade_usada[ap] += 1
+        if capacidade_usada[ap] > APs[ap]["cap"]:
+            return float("inf")  # Penalidade para soluções inválidas
+
+        total_distancia += calcular_distancia(cliente, APs[ap]["loc"])
+
+    return total_distancia
+
+# Gerar uma população inicial
+def gerar_populacao_inicial(tamanho_populacao, num_clientes):
+    return [
+        [random.choice(list(APs.keys())) for _ in range(num_clientes)]
+        for _ in range(tamanho_populacao)
+    ]
+
+# Função de seleção por torneio
+def selecao_torneio(populacao, fitness, tamanho_torneio=3):
+    participantes = random.sample(range(len(populacao)), tamanho_torneio)
+    melhor = min(participantes, key=lambda x: fitness[x])
+    return populacao[melhor]
+
+# Função de cruzamento (crossover)
+def crossover(pai1, pai2):
+    ponto_corte = random.randint(1, len(pai1) - 1)
+    filho = pai1[:ponto_corte] + pai2[ponto_corte:]
+    return filho
+
+# Função de mutação
+def mutacao(solucao, taxa_mutacao=0.1):
+    for i in range(len(solucao)):
+        if random.random() < taxa_mutacao:
+            solucao[i] = random.choice(list(APs.keys()))
+    return solucao
+
+# Algoritmo Genético
+def algoritmo_genetico(clientes, tamanho_populacao=50, geracoes=100, taxa_mutacao=0.1):
+    populacao = gerar_populacao_inicial(tamanho_populacao, len(clientes))
+    
+    for geracao in range(geracoes):
+        fitness = [avaliar_solucao(solucao, clientes) for solucao in populacao]
+        nova_populacao = []
+
+        for _ in range(tamanho_populacao):
+            pai1 = selecao_torneio(populacao, fitness)
+            pai2 = selecao_torneio(populacao, fitness)
+            filho = crossover(pai1, pai2)
+            filho = mutacao(filho, taxa_mutacao)
+            nova_populacao.append(filho)
+
+        populacao = nova_populacao
+
+    # Retorna a melhor solução encontrada
+    fitness = [avaliar_solucao(solucao, clientes) for solucao in populacao]
+    melhor_solucao = populacao[np.argmin(fitness)]
+    return melhor_solucao, min(fitness)
+
+# Leitura do arquivo de clientes
+clientes = []
+with open("/mnt/data/ag_data.csv", "r") as arquivo:
+    next(arquivo)  # Ignorar o cabeçalho
+    for linha in arquivo:
+        x, y = map(float, linha.strip().split(","))
+        clientes.append([x, y])
+
+# Executar o algoritmo genético
+melhor_solucao, melhor_aptidao = algoritmo_genetico(clientes)
+print("Melhor solução:", melhor_solucao)
+print("Melhor aptidão:", melhor_aptidao)
